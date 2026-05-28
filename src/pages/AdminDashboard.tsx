@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import { ComplantCategory, ComplaintStatus, categoryLabels } from '../types';
+import { ComplantCategory, categoryLabels, Complaint } from '../types';
 import GlassCard from '../components/GlassCard';
 import {
   FileText,
@@ -12,15 +12,12 @@ import {
   ArrowRight,
   BarChart3,
 } from 'lucide-react';
-import { Complaint } from '../types';
 
 interface Stats {
   total: number;
   pending: number;
   inProgress: number;
   resolved: number;
-  categoryCount: Record<ComplantCategory, number>;
-  recentComplaints: Complaint[];
 }
 
 export default function AdminDashboard() {
@@ -29,28 +26,25 @@ export default function AdminDashboard() {
     pending: 0,
     inProgress: 0,
     resolved: 0,
-    categoryCount: {
-      road_damage: 0,
-      water_leakage: 0,
-      garbage_issue: 0,
-      electricity_problem: 0,
-      drainage_problem: 0,
-    },
-    recentComplaints: [],
   });
+  const [recentComplaints, setRecentComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchStats();
+    fetchData();
   }, []);
 
-  const fetchStats = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const data = await api.get<Stats>('/admin/stats');
-      setStats(data);
+      const [statsData, complaintsData] = await Promise.all([
+        api.getStats(),
+        api.getComplaints(),
+      ]);
+      setStats(statsData);
+      setRecentComplaints(complaintsData.slice(0, 5));
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      console.error('Error fetching data:', error);
     }
     setLoading(false);
   };
@@ -116,93 +110,62 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <GlassCard className="p-6">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
-              By Category
+        <GlassCard className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+              Recent Complaints
             </h2>
+            <Link
+              to="/admin/complaints"
+              className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1"
+            >
+              View All
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+            </div>
+          ) : recentComplaints.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-slate-600 dark:text-slate-400">No complaints found</p>
+            </div>
+          ) : (
             <div className="space-y-3">
-              {(Object.keys(categoryLabels) as ComplantCategory[]).map((category) => {
-                const count = stats.categoryCount[category];
-                const percentage = stats.total > 0 ? (count / stats.total) * 100 : 0;
-
-                return (
-                  <div key={category}>
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span className="text-slate-600 dark:text-slate-400">
-                        {categoryLabels[category]}
-                      </span>
-                      <span className="font-medium text-slate-900 dark:text-white">{count}</span>
+              {recentComplaints.map((complaint) => (
+                <Link
+                  key={complaint._id}
+                  to={`/complaint/${complaint._id}`}
+                  className="block p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-medium text-slate-900 dark:text-white truncate">
+                        {complaint.title}
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        {categoryLabels[complaint.category]}
+                      </p>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-700">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-600"
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </div>
+                    <span
+                      className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium ${
+                        complaint.status === 'pending'
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                          : complaint.status === 'in_progress'
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                          : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                      }`}
+                    >
+                      {complaint.status.replace('_', ' ')}
+                    </span>
                   </div>
-                );
-              })}
+                </Link>
+              ))}
             </div>
-          </GlassCard>
-
-          <GlassCard className="lg:col-span-2 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                Recent Complaints
-              </h2>
-              <Link
-                to="/admin/complaints"
-                className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1"
-              >
-                View All
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-              </div>
-            ) : stats.recentComplaints.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-slate-600 dark:text-slate-400">No complaints found</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {stats.recentComplaints.slice(0, 5).map((complaint) => (
-                  <Link
-                    key={complaint._id}
-                    to={`/complaint/${complaint._id}`}
-                    className="block p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-medium text-slate-900 dark:text-white truncate">
-                          {complaint.title}
-                        </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          {categoryLabels[complaint.category]}
-                        </p>
-                      </div>
-                      <span
-                        className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium ${
-                          complaint.status === 'pending'
-                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                            : complaint.status === 'in_progress'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        }`}
-                      >
-                        {complaint.status.replace('_', ' ')}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </GlassCard>
-        </div>
+          )}
+        </GlassCard>
       </div>
     </div>
   );

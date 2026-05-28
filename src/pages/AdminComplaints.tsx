@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import { ComplantCategory, ComplaintStatus, categoryLabels, statusLabels, getImageUrl } from '../types';
+import { ComplantCategory, ComplaintStatus, categoryLabels, statusLabels, getImageUrl, Complaint } from '../types';
 import GlassCard from '../components/GlassCard';
 import CategoryBadge from '../components/CategoryBadge';
 import StatusBadge from '../components/StatusBadge';
@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
-import { Complaint } from '../types';
 
 export default function AdminComplaints() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
@@ -35,12 +34,11 @@ export default function AdminComplaints() {
   const fetchComplaints = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (statusFilter !== 'all') params.append('status', statusFilter);
-      if (categoryFilter !== 'all') params.append('category', categoryFilter);
-      if (searchTerm) params.append('search', searchTerm);
-
-      const data = await api.get<Complaint[]>(`/admin/complaints?${params.toString()}`);
+      const data = await api.getComplaints({
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        category: categoryFilter !== 'all' ? categoryFilter : undefined,
+        search: searchTerm || undefined,
+      });
       setComplaints(data);
     } catch (error) {
       console.error('Error fetching complaints:', error);
@@ -50,7 +48,7 @@ export default function AdminComplaints() {
 
   const handleStatusChange = async (complaintId: string, status: ComplaintStatus) => {
     try {
-      await api.put(`/admin/complaints/${complaintId}/status`, { status });
+      await api.updateComplaintStatus(complaintId, status);
       toast.success('Status updated successfully');
       setComplaints((prev) =>
         prev.map((c) => (c._id === complaintId ? { ...c, status } : c))
@@ -64,7 +62,7 @@ export default function AdminComplaints() {
     if (!confirm('Are you sure you want to delete this complaint?')) return;
 
     try {
-      await api.delete(`/complaints/${complaintId}`);
+      await api.deleteComplaint(complaintId);
       toast.success('Complaint deleted successfully');
       setComplaints((prev) => prev.filter((c) => c._id !== complaintId));
     } catch (error) {

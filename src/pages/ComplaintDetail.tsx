@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
-import { ComplaintStatus, getImageUrl } from '../types';
+import { ComplaintStatus, getImageUrl, Complaint } from '../types';
 import GlassCard from '../components/GlassCard';
 import CategoryBadge from '../components/CategoryBadge';
 import StatusBadge from '../components/StatusBadge';
@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
-import { Complaint } from '../types';
 
 export default function ComplaintDetail() {
   const { id } = useParams();
@@ -35,7 +34,7 @@ export default function ComplaintDetail() {
     if (!id) return;
 
     try {
-      const data = await api.get<Complaint>(`/complaints/${id}`);
+      const data = await api.getComplaint(id);
       setComplaint(data);
     } catch (error) {
       toast.error('Failed to load complaint');
@@ -50,7 +49,7 @@ export default function ComplaintDetail() {
 
     setDeleting(true);
     try {
-      await api.delete(`/complaints/${complaint._id}`);
+      await api.deleteComplaint(complaint._id);
       toast.success('Complaint deleted successfully');
       navigate('/dashboard');
     } catch (error) {

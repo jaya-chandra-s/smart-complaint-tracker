@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { api, setToken } from '../lib/api';
+import { api } from '../lib/api';
 import { ComplantCategory, categoryLabels } from '../types';
 import GlassCard from '../components/GlassCard';
 import {
@@ -55,25 +55,19 @@ export default function NewComplaint() {
     setLoading(true);
 
     try {
-      let complaintData;
+      let imageUrl = '';
 
       if (imageFile) {
-        const formDataObj = new FormData();
-        formDataObj.append('title', formData.title);
-        formDataObj.append('description', formData.description);
-        formDataObj.append('category', formData.category);
-        formDataObj.append('location', formData.location);
-        formDataObj.append('image', imageFile);
-
-        complaintData = await api.upload<{ _id: string }>('/complaints', formDataObj);
-      } else {
-        complaintData = await api.post<{ _id: string }>('/complaints', {
-          title: formData.title,
-          description: formData.description,
-          category: formData.category,
-          location: formData.location,
-        });
+        imageUrl = await api.uploadImage(imageFile);
       }
+
+      await api.createComplaint({
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        location: formData.location,
+        image_url: imageUrl,
+      });
 
       toast.success('Complaint submitted successfully!');
       navigate('/dashboard');

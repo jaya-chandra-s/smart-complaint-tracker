@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
-import { ComplantCategory, ComplaintStatus, categoryLabels, statusLabels, getImageUrl } from '../types';
 import {
   PlusCircle,
   FileText,
@@ -18,6 +17,10 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Complaint } from '../types';
+import GlassCard from '../components/GlassCard';
+import CategoryBadge from '../components/CategoryBadge';
+import StatusBadge from '../components/StatusBadge';
+import { categoryLabels, statusLabels, getImageUrl } from '../types';
 
 export default function UserDashboard() {
   const { user } = useAuth();
@@ -36,7 +39,7 @@ export default function UserDashboard() {
 
     setLoading(true);
     try {
-      const data = await api.get<Complaint[]>('/complaints');
+      const data = await api.getUserComplaints(user._id);
       setComplaints(data);
     } catch (error) {
       console.error('Error fetching complaints:', error);

@@ -42,7 +42,7 @@ export default function Analytics() {
     setLoading(true);
 
     try {
-      const analyticsData = await api.get<AnalyticsData>('/admin/analytics');
+      const analyticsData = await api.getAnalytics();
       setData(analyticsData);
 
       const catData = analyticsData.categoryStats.map((stat) => ({

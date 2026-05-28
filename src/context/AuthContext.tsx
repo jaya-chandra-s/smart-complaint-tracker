@@ -1,6 +1,14 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { User } from '../types';
-import { api, setToken, removeToken, getToken } from '../lib/api';
+
+interface UserRole {
+  id: string;
+  user_id: string;
+  role: 'user' | 'admin';
+  created_at: string;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -16,35 +24,89 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUser = useCallback(async () => {
-    const token = getToken();
-    if (!token) {
+  const fetchUserRole = async (supabaseUser: SupabaseUser): Promise<'user' | 'admin'> => {
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', supabaseUser.id)
+      .single();
+
+    if (error || !data) {
+      return 'user';
+    }
+    return data.role;
+  };
+
+  const createUserRole = async (userId: string, role: 'user' | 'admin' = 'user') => {
+    const { error } = await supabase
+      .from('user_roles')
+      .insert([{ user_id: userId, role }]);
+
+    if (error) {
+      console.error('Error creating user role:', error);
+    }
+  };
+
+  const updateUserData = async (supabaseUser: SupabaseUser | null) => {
+    if (!supabaseUser) {
       setUser(null);
       setLoading(false);
       return;
     }
 
-    try {
-      const userData = await api.get<User>('/auth/me');
-      setUser(userData);
-    } catch (error) {
-      console.error('Error fetching user:', error);
-      removeToken();
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    const role = await fetchUserRole(supabaseUser);
+    const userData: User = {
+      _id: supabaseUser.id,
+      email: supabaseUser.email || '',
+      name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
+      role,
+    };
+    setUser(userData);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+    const initAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      await updateUserData(session?.user ?? null);
+    };
+
+    initAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      await updateUserData(session?.user ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const signUp = async (email: string, password: string, name: string) => {
     try {
-      const userData = await api.post<User>('/auth/register', { email, password, name });
-      setToken(userData.token!);
-      setUser(userData);
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        await createUserRole(data.user.id, 'user');
+        const isAdmin = email.includes('admin');
+        if (isAdmin) {
+          await supabase
+            .from('user_roles')
+            .update({ role: 'admin' })
+            .eq('user_id', data.user.id);
+        }
+      }
+
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -53,9 +115,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const userData = await api.post<User>('/auth/login', { email, password });
-      setToken(userData.token!);
-      setUser(userData);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -63,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    removeToken();
+    await supabase.auth.signOut();
     setUser(null);
   };
 
